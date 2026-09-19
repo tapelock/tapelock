@@ -11,7 +11,7 @@ import (
 )
 
 // Rule replaces every match of Pattern inside a JSON string value with
-// Replace. A Rule only ever touches string leaf values — object keys and
+// Replace. A Rule only ever touches string leaf values: object keys and
 // the JSON structure itself are left alone.
 type Rule struct {
 	Pattern *regexp.Regexp
@@ -57,9 +57,9 @@ func New(rules ...Rule) *Sanitizer {
 }
 
 // Sanitize decodes body as JSON, applies every rule to each string value,
-// and re-encodes the result. body is never modified — the caller's
-// original request bytes are what get sent upstream; only the returned
-// bytes are safe to hash.
+// and re-encodes the result. body is never modified: the caller's
+// original request bytes are what get sent upstream, and only the
+// returned bytes are safe to hash.
 func (s *Sanitizer) Sanitize(body []byte) ([]byte, error) {
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.UseNumber() // preserve exact numeric text; avoid float64 round-tripping

@@ -5,7 +5,7 @@ import (
 	"net/url"
 )
 
-// Upstream implements engine.Upstream (structurally — this package does not
+// Upstream implements engine.Upstream (structurally: this package does not
 // import engine) by rewriting a request's scheme and host to a fixed
 // upstream base URL, then sending it with a real *http.Client.
 //

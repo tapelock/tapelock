@@ -1,7 +1,7 @@
 # Contributing to Tapelock
 
-Tapelock is in early development (pre-v0.1.0), so expect breaking changes
-to the CLI, configuration, and cassette formats.
+Tapelock is in early development (v0.1.0), so expect breaking changes to
+the CLI, configuration, and cassette formats before v1.
 
 ## Project layout
 
@@ -13,7 +13,9 @@ internal/cassette/     JSONL cassette storage
 internal/fingerprint/  JCS canonicalization and SHA-256 hashing
 internal/sanitize/     UUID, timestamp, and custom regex sanitization
 internal/assertion/    response assertions
+examples/chatbot/      Tapelock's own dogfood loop, a worked example
 testdata/              cassettes, schemas, and test fixtures
+docs/                  CLI reference, cassette format, matching, assertions
 ```
 
 The `internal/` packages are implementation details for v0.1.0. Avoid

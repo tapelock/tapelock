@@ -1,4 +1,4 @@
-# chatbot — Tapelock's own dogfood loop
+# chatbot: Tapelock's own dogfood loop
 
 This is Tapelock testing itself : a minimal
 OpenAI-style client (`main.go`) that only ever knows about

@@ -23,13 +23,13 @@ type Fingerprint struct {
 	// Occurrence is the 0-based count of prior requests in the same
 	// recording session that produced this same Hash. It lets agent loops
 	// that repeat an identical request replay a different response each
-	// time (see cassette.Interaction.RequestHash, which stores Hash alone —
+	// time (see cassette.Interaction.RequestHash, which stores Hash alone:
 	// occurrence is tracked by the caller, e.g. the cassette manager).
 	Occurrence int
 }
 
 // Input is what Compute hashes into a Fingerprint. The body must already be
-// sanitized and JCS-canonicalized (see Canonicalize) — Compute itself does
+// sanitized and JCS-canonicalized (see Canonicalize). Compute itself does
 // no transformation, it only hashes.
 type Input struct {
 	Method string

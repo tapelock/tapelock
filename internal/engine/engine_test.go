@@ -125,7 +125,7 @@ func TestEngineHandleRedactsAuthHeaderInCassette(t *testing.T) {
 	if _, ok := store.appended[0].Request.Headers["Authorization"]; ok {
 		t.Fatal("cassette stored the Authorization header; it must be redacted")
 	}
-	// Forwarding must still have received it — checked in the previous test —
+	// Forwarding must still have received it (checked in the previous test);
 	// this test only asserts what gets persisted to disk.
 }
 
@@ -271,7 +271,7 @@ func TestEngineHandleStreamsSSEAndRecordsChunks(t *testing.T) {
 	}
 }
 
-// errAfterReader returns data once, then a fixed error — simulating an
+// errAfterReader returns data once, then a fixed error, simulating an
 // upstream connection that fails partway through a stream.
 type errAfterReader struct {
 	data []byte

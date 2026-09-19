@@ -1,5 +1,5 @@
 // Package assertion checks a recorded interaction against deterministic
-// rules. v0.1 ships exactly three primitives: status, schema, usage — no
+// rules. v0.1 ships exactly three primitives: status, schema, usage. No
 // DSL, no scoring, no LLM-as-judge.
 package assertion
 
@@ -10,7 +10,7 @@ import (
 )
 
 // Assertion checks one property of a recorded interaction. Check is a pure
-// function of (interaction, the assertion's own configuration) — nothing
+// function of (interaction, the assertion's own configuration). Nothing
 // in this package consults an LLM, the network, or wall-clock state to
 // decide a verdict.
 type Assertion interface {

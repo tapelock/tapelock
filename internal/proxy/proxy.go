@@ -1,6 +1,6 @@
 // Package proxy is a thin net/http adaptation layer in front of the engine.
 // It never decides whether to record or replay, how to hash a request, or
-// how a cassette is stored — it only translates http.Request/ResponseWriter
+// how a cassette is stored. It only translates http.Request/ResponseWriter
 // to and from Handler calls. Streaming responses (SSE) are forwarded as raw
 // bytes, chunk by chunk, never re-parsed or re-serialized (see mvp.md §3;
 // full streaming support lands with the J10 milestone).
@@ -89,7 +89,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// as bytes arrive rather than sitting in a buffer. Doing this
 	// unconditionally, rather than only when Handler happens to return a
 	// stream, is what lets Proxy stay ignorant of whether this response is
-	// one — a stream and a small buffered body are written the same way.
+	// one: a stream and a small buffered body are written the same way.
 	flusher, _ := w.(http.Flusher)
 	buf := make([]byte, 32*1024)
 	for {

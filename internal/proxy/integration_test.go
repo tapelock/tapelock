@@ -84,8 +84,8 @@ func TestRecordEndToEnd(t *testing.T) {
 }
 
 // TestRecordThenReplayEndToEnd is the J9 milestone from mvp.md §16: record
-// a real interaction, then serve it back from the cassette alone — with no
-// upstream reachable at all — and confirm an unrecorded request is a
+// a real interaction, then serve it back from the cassette alone, with no
+// upstream reachable at all, and confirm an unrecorded request is a
 // deterministic miss rather than a silent fallback to a live call.
 func TestRecordThenReplayEndToEnd(t *testing.T) {
 	fakeOpenAI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -181,7 +181,7 @@ func TestStreamRecordThenReplayEndToEnd(t *testing.T) {
 			if i > 0 {
 				// Without a gap, even flushed writes can arrive close
 				// enough together that a single client Read() coalesces
-				// them — a real property of TCP, not a bug (mvp.md's
+				// them: a real property of TCP, not a bug (mvp.md's
 				// proxy is byte-oriented and makes no promise that one
 				// flush becomes one recorded chunk). The delay is only
 				// here to make this test's "count the chunks" assertion
@@ -263,7 +263,7 @@ func TestStreamRecordThenReplayEndToEnd(t *testing.T) {
 
 // TestStreamClientDisconnectRecordsNothing is the other half of mvp.md §10:
 // if the client goes away mid-stream, the interaction must never be
-// recorded — a partial recording would be a corrupt, unreplayable fixture.
+// recorded: a partial recording would be a corrupt, unreplayable fixture.
 func TestStreamClientDisconnectRecordsNothing(t *testing.T) {
 	fakeOpenAI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")

@@ -1,4 +1,4 @@
-// Command chatbot is the "real project" for Tapelock's own dogfood loop: 
+// Command chatbot is the "real project" for Tapelock's own dogfood loop:
 // a tiny OpenAI Chat Completions client that
 // changes nothing about its own code to be recorded or replayed, only
 // OPENAI_BASE_URL points it at the Tapelock proxy instead of the real API.

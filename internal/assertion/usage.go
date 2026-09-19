@@ -27,7 +27,7 @@ type usageBody struct {
 
 // ErrUsageUnavailable means a limit was configured but the response has no
 // usage data to check it against. It is a distinct type from an exceeded
-// limit so a caller can render it as "unknown" — the PRD is explicit that
+// limit so a caller can render it as "unknown": the PRD is explicit that
 // missing usage data must never be treated as a silent pass.
 type ErrUsageUnavailable struct {
 	Reason string
@@ -44,7 +44,7 @@ func (a UsageAssertion) Check(ctx context.Context, it cassette.Interaction) erro
 
 	if it.Response.Stream {
 		// usage, when present at all, is a JSON payload buried in one SSE
-		// frame (stream_options.include_usage) — extracting it needs
+		// frame (stream_options.include_usage). Extracting it needs
 		// provider-specific SSE parsing this package doesn't do.
 		return &ErrUsageUnavailable{Reason: "response is streamed"}
 	}

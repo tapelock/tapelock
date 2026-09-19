@@ -1,6 +1,6 @@
 // Package cassette stores and retrieves recorded interactions as JSONL
 // files (one file per cassette, one line per interaction). No database, no
-// external index — Append/Lookup/Read over a git-friendly append-only file.
+// external index: Append/Lookup/Read over a git-friendly append-only file.
 package cassette
 
 import (
@@ -18,8 +18,8 @@ const maxLineSize = 64 * 1024 * 1024
 
 // Manager reads and appends interactions in a single JSONL cassette file.
 // There is no database and no external index: the whole cassette is loaded
-// into memory once, and Lookup is a slice index by hash built at load time
-// — fine at the scale a single test suite records (see mvp.md §5).
+// into memory once, and Lookup is a slice index by hash built at load time.
+// That's fine at the scale a single test suite records (see mvp.md §5).
 //
 // A Manager is safe for concurrent use.
 type Manager struct {
@@ -35,7 +35,7 @@ type Manager struct {
 // treated as an empty cassette, which Append will create on first write.
 //
 // If any line fails to decode, the whole cassette is rejected instead of
-// silently dropping the bad entry — an unreadable cassette must fail the
+// silently dropping the bad entry: an unreadable cassette must fail the
 // build, not degrade into a partial replay (see the PRD's "cassette
 // illisible = échec" principle).
 func NewManager(path string) (*Manager, error) {

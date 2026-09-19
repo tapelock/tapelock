@@ -87,7 +87,7 @@ func EncodeLine(it Interaction) ([]byte, error) {
 
 // DecodeLine parses a single JSONL cassette line into an Interaction. It
 // rejects any version other than CurrentVersion and any field not defined
-// above — an unrecognized field is treated as a corrupt or foreign cassette
+// above: an unrecognized field is treated as a corrupt or foreign cassette
 // rather than silently ignored.
 func DecodeLine(line []byte) (Interaction, error) {
 	dec := json.NewDecoder(bytes.NewReader(line))

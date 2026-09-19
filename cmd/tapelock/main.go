@@ -82,7 +82,7 @@ func run() int {
 // exit code. Every error our own RunE functions return is wrapped as a
 // cliError with an explicit code, so a plain error reaching here is almost
 // always cobra's own flag/usage validation (missing required flag, unknown
-// flag, bad flag value) — a configuration error, not an unexpected
+// flag, bad flag value), a configuration error, not an unexpected
 // internal failure.
 func exitCodeFor(err error) int {
 	if err == nil {

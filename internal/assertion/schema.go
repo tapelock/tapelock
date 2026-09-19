@@ -13,13 +13,13 @@ import (
 
 // schemaResourceURL is a synthetic, never-dereferenced name under which the
 // compiled document is registered with the compiler. It only needs to be a
-// stable key for Compiler.AddResource/Compile — it is never fetched.
+// stable key for Compiler.AddResource/Compile. It is never fetched.
 const schemaResourceURL = "tapelock://schema"
 
 // SchemaAssertion validates a response body against a compiled JSON Schema
 // (draft 2020-12 by default). The compiler is given no URLLoader, so an
 // external $ref that isn't already part of the schema document fails to
-// compile instead of being fetched over the network — resolution stays
+// compile instead of being fetched over the network, so resolution stays
 // deterministic and immune to SSRF (see the PRD's note on this).
 type SchemaAssertion struct {
 	schema *jsonschema.Schema

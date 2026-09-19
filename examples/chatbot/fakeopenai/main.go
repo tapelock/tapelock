@@ -1,7 +1,7 @@
 // Command fakeopenai is a minimal, fixed-response stand-in for the OpenAI
 // Chat Completions API, used only to record the dogfood cassette in
-// examples/chatbot without a real API key. It is never used during replay
-// — see examples/chatbot/replay_check.sh, which never starts this.
+// examples/chatbot without a real API key. It is never used during replay:
+// see examples/chatbot/replay_check.sh, which never starts this.
 package main
 
 import (

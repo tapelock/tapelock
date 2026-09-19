@@ -43,7 +43,7 @@ func (e *MissError) CassetteMiss() bool { return true }
 type ReplayEngine struct {
 	Store CassetteLookup
 
-	// Sanitizer must match whatever recorded the cassette being replayed —
+	// Sanitizer must match whatever recorded the cassette being replayed;
 	// see fingerprintRequest. A mismatch doesn't corrupt anything, it just
 	// makes every request a miss.
 	Sanitizer *sanitize.Sanitizer
@@ -71,7 +71,7 @@ func (e *ReplayEngine) Handle(ctx context.Context, req *http.Request) (*http.Res
 	if it.Response.Stream {
 		// Replay timing is always "instant" in v0.1: chunk boundaries and
 		// content are preserved exactly, but there is no artificial delay
-		// between them — reproducing the original network timing is a
+		// between them. Reproducing the original network timing is a
 		// config option (stream_timing: recorded|scaled) for later.
 		var body bytes.Buffer
 		for _, chunk := range it.Response.Chunks {

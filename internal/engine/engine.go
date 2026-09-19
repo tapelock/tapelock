@@ -1,5 +1,5 @@
 // Package engine orchestrates record/replay behavior. It knows nothing about
-// http.Server, files on disk, or the CLI — it depends only on the ports
+// http.Server, files on disk, or the CLI. It depends only on the ports
 // (Upstream, CassetteStore) implemented by the other internal packages.
 // This is what lets 90% of Tapelock's behavior be unit-tested without ever
 // starting the proxy.
@@ -37,15 +37,16 @@ type CassetteStore interface {
 
 // defaultFingerprintHeaders is the header allowlist used to compute a
 // request's Fingerprint until match.headers becomes configurable via
-// tapelock.yaml (Layer 2). Everything else — notably Authorization, Date,
-// User-Agent, Content-Length — is excluded on purpose: hashing them would
-// make replay fragile across harmless client differences (see mvp.md §8).
+// tapelock.yaml (Layer 2). Everything else, notably Authorization, Date,
+// User-Agent, and Content-Length, is excluded on purpose: hashing them
+// would make replay fragile across harmless client differences (see
+// mvp.md §8).
 var defaultFingerprintHeaders = []string{"content-type"}
 
 // defaultRedactedHeaders are stripped from the request headers a cassette
-// stores. They are still forwarded to the upstream — recording must still
-// authenticate — but a cassette committed to git must never leak them (see
-// the PRD's OWASP §2.3).
+// stores. They are still forwarded to the upstream, since recording must
+// still authenticate, but a cassette committed to git must never leak them
+// (see the PRD's OWASP §2.3).
 var defaultRedactedHeaders = []string{"authorization", "x-api-key", "openai-organization"}
 
 // Engine records a request/response pair: it forwards the request to
@@ -66,8 +67,8 @@ type Engine struct {
 	Sanitizer *sanitize.Sanitizer
 
 	// Logf receives errors that happen after Handle has already returned a
-	// response to the caller — which, for a streamed response, can include
-	// a cassette append failure, since by then the client has already
+	// response to the caller. For a streamed response this can include a
+	// cassette append failure, since by then the client has already
 	// received the full body. It defaults to log.Printf if nil.
 	Logf func(format string, args ...any)
 }
@@ -150,13 +151,13 @@ const streamReadSize = 32 * 1024
 // handleStream forwards an SSE response to the client as bytes arrive, via
 // an io.Pipe, while recording each read as one cassette.ResponseChunk with
 // its arrival time relative to the previous read. It returns immediately
-// with a response whose Body streams from the pipe — the caller must not
+// with a response whose Body streams from the pipe. The caller must not
 // close resp.Body; the background goroutine does, once the stream ends.
 //
 // The cassette entry is appended only once the stream ends cleanly
-// (upstream EOF). A stream that ends any other way — the client
+// (upstream EOF). A stream that ends any other way, the client
 // disconnects (which cancels req's context, and so the shared upstream
-// request context), or upstream itself fails — is never recorded: a
+// request context), or upstream itself fails, is never recorded: a
 // partial recording would be a corrupt, unreplayable fixture (mvp.md §10).
 func (e *Engine) handleStream(req *http.Request, reqBody []byte, fp fingerprint.Fingerprint, resp *http.Response) *http.Response {
 	pr, pw := io.Pipe()
@@ -211,7 +212,7 @@ func (e *Engine) handleStream(req *http.Request, reqBody []byte, fp fingerprint.
 				// sees end-of-stream, the recording is already durable.
 				// Handle has already returned this stream's response to
 				// the caller, so an append failure can no longer fail the
-				// request the way the buffered path does — it can only be
+				// request the way the buffered path does. It can only be
 				// logged.
 				if err := e.Store.Append(it); err != nil {
 					e.logf("engine: append streamed cassette entry: %v", err)
@@ -248,7 +249,7 @@ func (e *Engine) logf(format string, args ...any) {
 }
 
 // fingerprintRequest computes the Fingerprint that both Engine (record) and
-// ReplayEngine use to key a cassette entry. The two MUST hash identically —
+// ReplayEngine use to key a cassette entry. The two MUST hash identically:
 // if they ever diverged, a replay could never hit what was just recorded.
 func fingerprintRequest(s *sanitize.Sanitizer, req *http.Request, body []byte) (fingerprint.Fingerprint, error) {
 	canonicalBody, err := canonicalizeBody(s, body)

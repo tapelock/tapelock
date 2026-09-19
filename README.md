@@ -10,8 +10,9 @@ provider availability becoming part of the test suite.
 
 > Tapelock doesn't understand LLMs. It understands HTTP, JSON, and a few assertions.
 
-**Status:** early development. v0.1.0 is currently in progress and the CLI
-and config format will change without notice until then.
+**Status:** early development. [v0.1.0](https://github.com/tapelock/tapelock/releases/tag/v0.1.0)
+covers OpenAI Chat Completions only; the CLI and config format will still
+change without notice before v1.
 
 ## Design principles
 
@@ -38,7 +39,7 @@ and config format will change without notice until then.
 ### Install
 
 ```bash
-go install github.com/tapelock/tapelock/cmd/tapelock@latest
+go install github.com/tapelock/tapelock/cmd/tapelock@v0.1.0
 ```
 
 ### Record
@@ -97,6 +98,11 @@ RFC 8785 (JCS) and hashed with SHA-256.
 
 During replay, Tapelock matches the incoming request against the cassette
 and returns the recorded response. No live API call is made.
+
+## Documentation
+
+See [docs/](docs/) for the CLI reference, the cassette format, how request
+matching works, and the `check` assertions.
 
 ## Contributing
 
