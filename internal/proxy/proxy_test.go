@@ -78,3 +78,45 @@ func TestProxyServeHTTPReturns502OnHandlerError(t *testing.T) {
 		t.Fatal("ErrorLog was never called")
 	}
 }
+
+type fakeMissError struct{ msg string }
+
+func (e *fakeMissError) Error() string      { return e.msg }
+func (e *fakeMissError) CassetteMiss() bool { return true }
+
+func TestProxyServeHTTPSetsMissHeaderOnCassetteMiss(t *testing.T) {
+	handler := &fakeHandler{err: &fakeMissError{msg: "cassette miss"}}
+
+	srv := httptest.NewServer(&Proxy{Handler: handler, ErrorLog: func(string, ...any) {}})
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusBadGateway)
+	}
+	if resp.Header.Get(MissHeader) != "1" {
+		t.Fatalf("%s header = %q, want %q", MissHeader, resp.Header.Get(MissHeader), "1")
+	}
+}
+
+func TestProxyServeHTTPDoesNotSetMissHeaderOnGenericError(t *testing.T) {
+	handler := &fakeHandler{err: errors.New("network blip")}
+
+	srv := httptest.NewServer(&Proxy{Handler: handler, ErrorLog: func(string, ...any) {}})
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.Header.Get(MissHeader) != "" {
+		t.Fatalf("%s header should not be set for a generic error, got %q", MissHeader, resp.Header.Get(MissHeader))
+	}
+}

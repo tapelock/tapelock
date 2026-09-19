@@ -51,7 +51,7 @@ var defaultRedactedHeaders = []string{"authorization", "x-api-key", "openai-orga
 // request (502) rather than silently serving a response that was never
 // durably recorded.
 //
-// Replay is not implemented by this Engine — see mvp.md's J9 milestone.
+// See ReplayEngine (replay.go) for the read-only counterpart.
 type Engine struct {
 	Upstream Upstream
 	Store    CassetteStore
@@ -75,9 +75,9 @@ func (e *Engine) Handle(ctx context.Context, req *http.Request) (*http.Response,
 	}
 	req.Body.Close()
 
-	canonicalBody, err := e.canonicalizeBody(reqBody)
+	fp, err := fingerprintRequest(e.Sanitizer, req, reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("engine: canonicalize request body: %w", err)
+		return nil, fmt.Errorf("engine: fingerprint request: %w", err)
 	}
 
 	upstreamReq, err := http.NewRequestWithContext(ctx, req.Method, req.URL.String(), bytes.NewReader(reqBody))
@@ -96,13 +96,6 @@ func (e *Engine) Handle(ctx context.Context, req *http.Request) (*http.Response,
 	if err != nil {
 		return nil, fmt.Errorf("engine: read upstream response body: %w", err)
 	}
-
-	fp := fingerprint.Compute(fingerprint.Input{
-		Method:        req.Method,
-		Path:          req.URL.Path,
-		Headers:       filterHeaders(req.Header, defaultFingerprintHeaders),
-		CanonicalBody: canonicalBody,
-	})
 
 	it := cassette.Interaction{
 		Version: cassette.CurrentVersion,
@@ -132,18 +125,35 @@ func (e *Engine) Handle(ctx context.Context, req *http.Request) (*http.Response,
 	}, nil
 }
 
+// fingerprintRequest computes the Fingerprint that both Engine (record) and
+// ReplayEngine use to key a cassette entry. The two MUST hash identically —
+// if they ever diverged, a replay could never hit what was just recorded.
+func fingerprintRequest(s *sanitize.Sanitizer, req *http.Request, body []byte) (fingerprint.Fingerprint, error) {
+	canonicalBody, err := canonicalizeBody(s, body)
+	if err != nil {
+		return fingerprint.Fingerprint{}, err
+	}
+
+	return fingerprint.Compute(fingerprint.Input{
+		Method:        req.Method,
+		Path:          req.URL.Path,
+		Headers:       filterHeaders(req.Header, defaultFingerprintHeaders),
+		CanonicalBody: canonicalBody,
+	}), nil
+}
+
 // canonicalizeBody runs the sanitize -> JCS pipeline from internal/sanitize
 // and internal/fingerprint. An empty body (e.g. a bodyless GET) skips both
 // steps rather than erroring on invalid JSON.
-func (e *Engine) canonicalizeBody(body []byte) ([]byte, error) {
+func canonicalizeBody(s *sanitize.Sanitizer, body []byte) ([]byte, error) {
 	if len(body) == 0 {
 		return nil, nil
 	}
 
 	sanitized := body
-	if e.Sanitizer != nil {
+	if s != nil {
 		var err error
-		sanitized, err = e.Sanitizer.Sanitize(body)
+		sanitized, err = s.Sanitize(body)
 		if err != nil {
 			return nil, fmt.Errorf("sanitize: %w", err)
 		}

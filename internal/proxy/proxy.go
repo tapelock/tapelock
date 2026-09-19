@@ -8,6 +8,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -15,12 +16,29 @@ import (
 	"strings"
 )
 
-// Handler is the shape engine.Engine.Handle satisfies. Proxy depends on
-// this interface rather than importing the engine package, so it never has
-// an opinion on how a request is recorded, replayed, or hashed.
+// Handler is the shape engine.Engine and engine.ReplayEngine both satisfy.
+// Proxy depends on this interface rather than importing the engine
+// package, so it never has an opinion on how a request is recorded,
+// replayed, or hashed.
 type Handler interface {
 	Handle(ctx context.Context, req *http.Request) (*http.Response, error)
 }
+
+// missError is implemented by errors representing a deterministic cassette
+// miss (engine.MissError), as opposed to a genuine upstream/network
+// failure. Checking for it through this small interface, rather than
+// importing the engine package, is what keeps Proxy from having any
+// opinion on how replay works.
+type missError interface {
+	error
+	CassetteMiss() bool
+}
+
+// MissHeader is set to "1" on the response when Handler.Handle failed with
+// a deterministic cassette miss, so a caller can distinguish "nothing
+// recorded matches this request" from any other proxy error without
+// parsing the response body.
+const MissHeader = "X-Tapelock-Miss"
 
 // Proxy adapts a Handler to net/http.
 type Proxy struct {
@@ -41,6 +59,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp, err := p.Handler.Handle(r.Context(), r)
 	if err != nil {
 		p.logf("tapelock: %v", err)
+
+		var me missError
+		if errors.As(err, &me) && me.CassetteMiss() {
+			w.Header().Set(MissHeader, "1")
+		}
 		http.Error(w, "tapelock: "+err.Error(), http.StatusBadGateway)
 		return
 	}
