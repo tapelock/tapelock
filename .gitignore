@@ -17,5 +17,4 @@ c.out
 .vscode/
 
 # Internal planning docs: business/legal strategy, not for the public repo.
-mvp.md
 Tapelock_PRD.md

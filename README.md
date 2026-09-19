@@ -102,7 +102,8 @@ and returns the recorded response. No live API call is made.
 ## Documentation
 
 See [docs/](docs/) for the CLI reference, the cassette format, how request
-matching works, and the `check` assertions.
+matching works, and the `check` assertions. See [ROADMAP.md](ROADMAP.md)
+for what's next.
 
 ## Contributing
 

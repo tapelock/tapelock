@@ -6,4 +6,5 @@
 - [Assertions](assertions.md): the `check` flags, `--status`, `--schema`, `--max-*-tokens`
 
 For the project's status and a 30-second usage example, see the [README](../README.md).
+For what's planned next, see [ROADMAP.md](../ROADMAP.md).
 For the GitHub Action, see [tapelock/action](https://github.com/tapelock/action).
