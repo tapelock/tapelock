@@ -12,8 +12,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log"
+	"mime"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/tapelock/tapelock/internal/cassette"
 	"github.com/tapelock/tapelock/internal/fingerprint"
@@ -61,6 +64,12 @@ type Engine struct {
 	// or timestamps will make otherwise-identical requests hash
 	// differently.
 	Sanitizer *sanitize.Sanitizer
+
+	// Logf receives errors that happen after Handle has already returned a
+	// response to the caller — which, for a streamed response, can include
+	// a cassette append failure, since by then the client has already
+	// received the full body. It defaults to log.Printf if nil.
+	Logf func(format string, args ...any)
 }
 
 // Handle reads req fully, forwards it to Upstream unchanged, records the
@@ -90,6 +99,12 @@ func (e *Engine) Handle(ctx context.Context, req *http.Request) (*http.Response,
 	if err != nil {
 		return nil, fmt.Errorf("engine: upstream request failed: %w", err)
 	}
+
+	if isEventStream(resp.Header.Get("Content-Type")) {
+		// handleStream takes ownership of resp.Body and returns before the
+		// stream finishes; Handle must not close it here.
+		return e.handleStream(req, reqBody, fp, resp), nil
+	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
@@ -98,14 +113,9 @@ func (e *Engine) Handle(ctx context.Context, req *http.Request) (*http.Response,
 	}
 
 	it := cassette.Interaction{
-		Version: cassette.CurrentVersion,
-		ID:      newID(),
-		Request: cassette.RequestSnapshot{
-			Method:  req.Method,
-			URL:     req.URL.String(),
-			Headers: redactedHeaders(req.Header, defaultRedactedHeaders),
-			Body:    string(reqBody),
-		},
+		Version:     cassette.CurrentVersion,
+		ID:          newID(),
+		Request:     e.requestSnapshot(req, reqBody),
 		RequestHash: fp.Hash,
 		Response: cassette.ResponseSnapshot{
 			Status:  resp.StatusCode,
@@ -123,6 +133,118 @@ func (e *Engine) Handle(ctx context.Context, req *http.Request) (*http.Response,
 		Body:          io.NopCloser(bytes.NewReader(respBody)),
 		ContentLength: int64(len(respBody)),
 	}, nil
+}
+
+// isEventStream reports whether contentType is Server-Sent Events,
+// ignoring any charset or other parameters.
+func isEventStream(contentType string) bool {
+	mediaType, _, _ := mime.ParseMediaType(contentType)
+	return strings.EqualFold(mediaType, "text/event-stream")
+}
+
+// streamReadSize bounds each read from an upstream SSE response. It is
+// deliberately not aligned to SSE frame ("\n\n") boundaries: the proxy
+// stays byte-oriented, with no SSE-specific parsing (see mvp.md §3).
+const streamReadSize = 32 * 1024
+
+// handleStream forwards an SSE response to the client as bytes arrive, via
+// an io.Pipe, while recording each read as one cassette.ResponseChunk with
+// its arrival time relative to the previous read. It returns immediately
+// with a response whose Body streams from the pipe — the caller must not
+// close resp.Body; the background goroutine does, once the stream ends.
+//
+// The cassette entry is appended only once the stream ends cleanly
+// (upstream EOF). A stream that ends any other way — the client
+// disconnects (which cancels req's context, and so the shared upstream
+// request context), or upstream itself fails — is never recorded: a
+// partial recording would be a corrupt, unreplayable fixture (mvp.md §10).
+func (e *Engine) handleStream(req *http.Request, reqBody []byte, fp fingerprint.Fingerprint, resp *http.Response) *http.Response {
+	pr, pw := io.Pipe()
+
+	go func() {
+		defer resp.Body.Close()
+
+		var chunks []cassette.ResponseChunk
+		buf := make([]byte, streamReadSize)
+		last := time.Now()
+
+		for {
+			n, readErr := resp.Body.Read(buf)
+			if n > 0 {
+				now := time.Now()
+				chunks = append(chunks, cassette.ResponseChunk{
+					Data:    string(buf[:n]),
+					DelayMS: now.Sub(last).Milliseconds(),
+				})
+				last = now
+
+				if _, writeErr := pw.Write(buf[:n]); writeErr != nil {
+					// The client side is gone: stop reading from upstream
+					// (no point paying for tokens nobody will see) and
+					// record nothing.
+					pw.CloseWithError(writeErr)
+					return
+				}
+			}
+
+			if readErr != nil {
+				if readErr != io.EOF {
+					// Upstream failed, or req's context was canceled by a
+					// client disconnect: the stream is incomplete.
+					pw.CloseWithError(readErr)
+					return
+				}
+
+				it := cassette.Interaction{
+					Version:     cassette.CurrentVersion,
+					ID:          newID(),
+					Request:     e.requestSnapshot(req, reqBody),
+					RequestHash: fp.Hash,
+					Response: cassette.ResponseSnapshot{
+						Status:  resp.StatusCode,
+						Headers: cassette.Headers(resp.Header),
+						Stream:  true,
+						Chunks:  chunks,
+					},
+				}
+				// Append before closing the pipe: by the time the client
+				// sees end-of-stream, the recording is already durable.
+				// Handle has already returned this stream's response to
+				// the caller, so an append failure can no longer fail the
+				// request the way the buffered path does — it can only be
+				// logged.
+				if err := e.Store.Append(it); err != nil {
+					e.logf("engine: append streamed cassette entry: %v", err)
+				}
+				pw.Close()
+				return
+			}
+		}
+	}()
+
+	return &http.Response{
+		StatusCode:    resp.StatusCode,
+		Header:        resp.Header,
+		Body:          pr,
+		ContentLength: -1,
+	}
+}
+
+func (e *Engine) requestSnapshot(req *http.Request, reqBody []byte) cassette.RequestSnapshot {
+	return cassette.RequestSnapshot{
+		Method:  req.Method,
+		URL:     req.URL.String(),
+		Headers: redactedHeaders(req.Header, defaultRedactedHeaders),
+		Body:    string(reqBody),
+	}
+}
+
+func (e *Engine) logf(format string, args ...any) {
+	if e.Logf != nil {
+		e.Logf(format, args...)
+		return
+	}
+	log.Printf(format, args...)
 }
 
 // fingerprintRequest computes the Fingerprint that both Engine (record) and

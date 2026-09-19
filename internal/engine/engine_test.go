@@ -213,3 +213,102 @@ func TestEngineHandleEmptyBodyOK(t *testing.T) {
 		t.Fatalf("RequestHash %q does not look like sha256:<hex>", store.appended[0].RequestHash)
 	}
 }
+
+func TestEngineHandleStreamsSSEAndRecordsChunks(t *testing.T) {
+	frames := []string{
+		"data: {\"delta\":\"Hel\"}\n\n",
+		"data: {\"delta\":\"lo\"}\n\n",
+		"data: [DONE]\n\n",
+	}
+	readers := make([]io.Reader, len(frames))
+	for i, f := range frames {
+		readers[i] = strings.NewReader(f)
+	}
+
+	up := &fakeUpstream{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": {"text/event-stream"}},
+		Body:       io.NopCloser(io.MultiReader(readers...)),
+	}}
+	store := &fakeStore{}
+	e := &Engine{Upstream: up, Store: store}
+
+	resp, err := e.Handle(context.Background(), newRequest(t, `{"model":"gpt-4o-mini","stream":true}`))
+	if err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.ContentLength != -1 {
+		t.Fatalf("ContentLength = %d, want -1 (unknown/streamed)", resp.ContentLength)
+	}
+
+	got, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	want := strings.Join(frames, "")
+	if string(got) != want {
+		t.Fatalf("body = %q, want %q", got, want)
+	}
+
+	// Append happens before the pipe reports EOF (see handleStream), so it
+	// is guaranteed to have already run by the time ReadAll returns above.
+	if len(store.appended) != 1 {
+		t.Fatalf("cassette has %d interactions, want 1", len(store.appended))
+	}
+	it := store.appended[0]
+	if !it.Response.Stream {
+		t.Fatal("stored interaction: Response.Stream = false, want true")
+	}
+	if len(it.Response.Chunks) != len(frames) {
+		t.Fatalf("stored %d chunks, want %d", len(it.Response.Chunks), len(frames))
+	}
+	for i, f := range frames {
+		if it.Response.Chunks[i].Data != f {
+			t.Fatalf("chunk %d = %q, want %q", i, it.Response.Chunks[i].Data, f)
+		}
+	}
+}
+
+// errAfterReader returns data once, then a fixed error — simulating an
+// upstream connection that fails partway through a stream.
+type errAfterReader struct {
+	data []byte
+	err  error
+	sent bool
+}
+
+func (r *errAfterReader) Read(p []byte) (int, error) {
+	if r.sent {
+		return 0, r.err
+	}
+	r.sent = true
+	return copy(p, r.data), nil
+}
+
+func TestEngineHandleStreamUpstreamErrorRecordsNothing(t *testing.T) {
+	up := &fakeUpstream{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": {"text/event-stream"}},
+		Body:       io.NopCloser(&errAfterReader{data: []byte("data: partial\n\n"), err: io.ErrUnexpectedEOF}),
+	}}
+	store := &fakeStore{}
+	e := &Engine{Upstream: up, Store: store}
+
+	resp, err := e.Handle(context.Background(), newRequest(t, `{"model":"gpt-4o-mini","stream":true}`))
+	if err != nil {
+		t.Fatalf("Handle: %v (the failure happens asynchronously, Handle itself should still succeed)", err)
+	}
+	defer resp.Body.Close()
+
+	if _, err := io.ReadAll(resp.Body); err == nil {
+		t.Fatal("ReadAll: want an error reading a stream that failed upstream, got nil")
+	}
+
+	// CloseWithError happens after deciding not to append, so observing the
+	// error on read guarantees that decision has already been made.
+	if len(store.appended) != 0 {
+		t.Fatalf("cassette has %d interactions after an upstream failure mid-stream, want 0", len(store.appended))
+	}
+}

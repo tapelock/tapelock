@@ -84,8 +84,31 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(resp.StatusCode)
 
-	if _, err := io.Copy(w, resp.Body); err != nil {
-		p.logf("tapelock: write response to client: %v", err)
+	// A manual read-write-flush loop instead of io.Copy: flushing after
+	// every write is what makes a streamed response (SSE) reach the client
+	// as bytes arrive rather than sitting in a buffer. Doing this
+	// unconditionally, rather than only when Handler happens to return a
+	// stream, is what lets Proxy stay ignorant of whether this response is
+	// one — a stream and a small buffered body are written the same way.
+	flusher, _ := w.(http.Flusher)
+	buf := make([]byte, 32*1024)
+	for {
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
+				p.logf("tapelock: write response to client: %v", writeErr)
+				return
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+		if readErr != nil {
+			if readErr != io.EOF {
+				p.logf("tapelock: read response body: %v", readErr)
+			}
+			return
+		}
 	}
 }
 

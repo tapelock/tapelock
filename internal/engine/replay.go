@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -68,9 +69,20 @@ func (e *ReplayEngine) Handle(ctx context.Context, req *http.Request) (*http.Res
 	}
 
 	if it.Response.Stream {
-		// Recorded by a future streaming-aware record path (J10). Refusing
-		// outright beats silently serving an empty body.
-		return nil, fmt.Errorf("replay: %s %s matched a streamed recording, which replay does not support yet", req.Method, req.URL.Path)
+		// Replay timing is always "instant" in v0.1: chunk boundaries and
+		// content are preserved exactly, but there is no artificial delay
+		// between them — reproducing the original network timing is a
+		// config option (stream_timing: recorded|scaled) for later.
+		var body bytes.Buffer
+		for _, chunk := range it.Response.Chunks {
+			body.WriteString(chunk.Data)
+		}
+		return &http.Response{
+			StatusCode:    it.Response.Status,
+			Header:        http.Header(it.Response.Headers),
+			Body:          io.NopCloser(bytes.NewReader(body.Bytes())),
+			ContentLength: int64(body.Len()),
+		}, nil
 	}
 
 	return &http.Response{

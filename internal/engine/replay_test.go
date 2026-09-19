@@ -87,7 +87,7 @@ func TestReplayEngineHandleMissReturnsMissError(t *testing.T) {
 	}
 }
 
-func TestReplayEngineHandleRejectsStreamedRecording(t *testing.T) {
+func TestReplayEngineHandleServesStreamedRecording(t *testing.T) {
 	body := `{"model":"gpt-4o-mini"}`
 	fp, err := fingerprintRequest(nil, newReplayRequest(t, body), []byte(body))
 	if err != nil {
@@ -98,20 +98,34 @@ func TestReplayEngineHandleRejectsStreamedRecording(t *testing.T) {
 		Version:     cassette.CurrentVersion,
 		RequestHash: fp.Hash,
 		Response: cassette.ResponseSnapshot{
-			Status: 200,
-			Stream: true,
-			Chunks: []cassette.ResponseChunk{{Data: "data: hi\n\n", DelayMS: 0}},
+			Status:  200,
+			Headers: cassette.Headers{"Content-Type": {"text/event-stream"}},
+			Stream:  true,
+			Chunks: []cassette.ResponseChunk{
+				{Data: "data: {\"delta\":\"Hi\"}\n\n", DelayMS: 0},
+				{Data: "data: {\"delta\":\" there!\"}\n\n", DelayMS: 42},
+				{Data: "data: [DONE]\n\n", DelayMS: 5},
+			},
 		},
 	}
 	re := &ReplayEngine{Store: &fakeLookup{byHash: map[string]cassette.Interaction{fp.Hash: recorded}}}
 
-	_, err = re.Handle(context.Background(), newReplayRequest(t, body))
-	if err == nil {
-		t.Fatal("Handle: want error for a streamed recording, got nil")
+	resp, err := re.Handle(context.Background(), newReplayRequest(t, body))
+	if err != nil {
+		t.Fatalf("Handle: %v", err)
 	}
-	var miss *MissError
-	if errors.As(err, &miss) {
-		t.Fatal("a streamed recording should not be reported as a cassette miss")
+	defer resp.Body.Close()
+
+	got, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	want := "data: {\"delta\":\"Hi\"}\n\ndata: {\"delta\":\" there!\"}\n\ndata: [DONE]\n\n"
+	if string(got) != want {
+		t.Fatalf("body = %q, want %q (chunks must replay in order, concatenated exactly)", got, want)
+	}
+	if resp.ContentLength != int64(len(want)) {
+		t.Fatalf("ContentLength = %d, want %d", resp.ContentLength, len(want))
 	}
 }
 
