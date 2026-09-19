@@ -1,0 +1,19 @@
+# Build artifacts
+/bin/
+/dist/
+/tapelock
+
+# Go
+*.test
+*.out
+c.out
+
+# Local cassettes recorded during manual testing (not fixtures)
+/.tapelock/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+mvp.md
