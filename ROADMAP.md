@@ -20,6 +20,14 @@ See [docs/](docs/) for how each of these actually works.
 
 Roughly in priority order, though nothing here is scheduled yet:
 
+- **Cross-platform binary distribution.** The only install path today is
+  `go install`, which needs the Go toolchain, real friction for the JS/TS
+  and Python developers who make up most of the LLM app ecosystem. The
+  proxy itself is already language-agnostic (it intercepts HTTP, not Go
+  code), so this is a packaging problem, not an architecture one: build
+  binaries per platform with goreleaser, then ship thin npm and pip
+  wrapper packages that download and exec the right one, the same pattern
+  tools like esbuild and wrangler use.
 - **Anthropic support.** The provider boundary was designed for this from the start; the work is a second adapter and a second CI contract test.
 - **More assertions.** `finish_reason` (allowlist), `tool_calls` (name allowlist plus schema-validated arguments), and `latency` (TTFB-based, since it's more stable than total time).
 - **Schema and usage assertions for streamed responses.** Both currently refuse to run on a streamed interaction, since there's no single JSON document to parse yet.
